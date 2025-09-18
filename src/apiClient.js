@@ -1,59 +1,68 @@
+// src/apiClient.js
 const BASE = import.meta.env.VITE_API_BASE_URL;
-console.log("API BASE =", BASE);
 
-export function getToken() {
-  return localStorage.getItem("token") || "";
-}
-export function setToken(t) {
-  localStorage.setItem("token", t || "");
-}
-export function clearToken() {
-  localStorage.removeItem("token");
+function getToken() {
+  try {
+    return localStorage.getItem("token") || "";
+  } catch {
+    return "";
+  }
 }
 
-async function request(path, { method = "GET", body, headers = {} } = {}) {
+async function request(path, { method = "GET", body, headers } = {}) {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
-      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-      ...headers,
+      Authorization: getToken() ? `Bearer ${getToken()}` : "",
+      ...(headers || {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
+    let data;
     try {
-      const j = await res.json();
-      msg = j.error || msg;
-    } catch {}
-    throw new Error(msg);
+      data = await res.json();
+    } catch {
+      /* ignore */
+    }
+    throw new Error(data?.error || `HTTP ${res.status}`);
   }
   return res.json();
 }
 
-// Auth
-export async function loginWithPassword(password) {
-  const data = await request("/auth/login", {
-    method: "POST",
-    body: { password },
-  });
-  setToken(data.token);
-  return data;
-}
-
-// Produk
-export const productsApi = {
-  list: (q = "") =>
-    request(`/products${q ? `?q=${encodeURIComponent(q)}` : ""}`),
-  create: (p) => request("/products", { method: "POST", body: p }),
-  update: (id, p) => request(`/products/${id}`, { method: "PUT", body: p }),
-  remove: (id) => request(`/products/${id}`, { method: "DELETE" }),
-  addStock: (id, payload) =>
-    request(`/products/${id}/add-stock`, { method: "POST", body: payload }), // <—
+export const api = {
+  auth: {
+    login: (password) =>
+      request("/auth/login", { method: "POST", body: { password } }),
+  },
+  products: {
+    list: (q = "") =>
+      request(`/products${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+    create: (p) => request("/products", { method: "POST", body: p }),
+    update: (id, p) => request(`/products/${id}`, { method: "PUT", body: p }),
+    remove: (id) => request(`/products/${id}`, { method: "DELETE" }),
+    addStock: (id, payload) =>
+      request(`/products/${id}/add-stock`, { method: "POST", body: payload }), // <—
+  },
+  customers: {
+    list: () => request("/customers"),
+    create: (c) => request("/customers", { method: "POST", body: c }),
+    update: (id, c) => request(`/customers/${id}`, { method: "PUT", body: c }),
+    remove: (id) => request(`/customers/${id}`, { method: "DELETE" }),
+  },
+  sales: {
+    create: (payload) => request("/sales", { method: "POST", body: payload }),
+    list: (status) => request(`/sales${status ? `?status=${status}` : ""}`),
+  },
+  payments: {
+    create: (payload) =>
+      request("/payments", { method: "POST", body: payload }),
+  },
+  reports: {
+    sales: (from, to) => request(`/reports/sales?from=${from}&to=${to}`),
+    stockIn: (from, to) => request(`/reports/stock-in?from=${from}&to=${to}`),
+  },
 };
 
-export const reportsApi = {
-  sales: (from, to) => request(`/reports/sales?from=${from}&to=${to}`),
-  stockIn: (from, to) => request(`/reports/stock-in?from=${from}&to=${to}`), // <—
-};
+export default api;
