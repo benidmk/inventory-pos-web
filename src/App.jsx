@@ -388,6 +388,25 @@ function ProductsView() {
                   <td className="text-right">
                     <Button className="text-blue-700" onClick={()=>edit(p)}>Edit</Button>
                     <Button className="ml-2 text-red-700" onClick={()=>remove(p)}>Hapus</Button>
+                    {/* Tambah stok */}
+                    <Button className="ml-2 bg-green-600 text-white" onClick={async ()=>{
+                      const q = prompt(`Tambah stok untuk "${p.name}" (qty)?`, "1");
+                      if (!q) return;
+                      const qty = parseInt(q, 10);
+                      if (!Number.isFinite(qty) || qty <= 0) return alert('Qty tidak valid');
+
+                      const ucStr = prompt(`Harga beli per ${p.unit}? (opsional, kosongkan jika tidak dicatat)`, "");
+                      const unitCost = ucStr ? parseInt(ucStr, 10) : undefined;
+                      if (ucStr && (!Number.isFinite(unitCost) || unitCost < 0)) return alert('Harga beli tidak valid');
+
+                      try {
+                        await api.products.addStock(p.id, { qty, unitCost });
+                        await load();
+                        alert('Stok ditambahkan');
+                      } catch(e) {
+                        alert(e.message);
+                      }
+                    }}>Tambah Stok</Button>
                   </td>
                 </tr>
               ))}
@@ -773,10 +792,13 @@ function ReportsView() {
   const start = new Date(end); start.setDate(start.getDate()-7);
   const [range, setRange] = useState({ from: ymdLocal(start), to: ymdLocal(end) });
   const [data, setData] = useState({ total: 0, list: [] });
+  const [stockIn, setStockIn] = useState({ totalQty: 0, totalValue: 0, list: [] });
 
   async function load() {
     const r = await api.reports.sales(range.from, range.to);
     setData(r);
+    const sIn = await api.reports.stockIn(range.from, range.to);
+    setStockIn(sIn); // <—
   }
   useEffect(()=>{ load(); }, [range]);
 
@@ -805,6 +827,58 @@ function ReportsView() {
       <Card>
         <div className="text-gray-500">Total Penjualan</div>
         <div className="text-2xl font-bold">{fmtIDR(data.total)}</div>
+      </Card>
+
+      {/* Ringkas Barang Masuk */}
+      <Card>
+        <div className="text-gray-500">Barang Masuk</div>
+        <div className="text-sm text-gray-400">Qty: {stockIn.totalQty}</div>
+        <div className="text-sm text-gray-400">Nilai: {fmtIDR(stockIn.totalValue)}</div>
+        <div className="mt-2">
+          <Button onClick={()=>{
+            const rows = [["Tanggal","Produk","Qty","Harga Beli","Nilai","Catatan"]];
+            stockIn.list.forEach(m=>{
+              rows.push([
+                new Date(m.date).toLocaleString('id-ID'),
+                m.productName, m.qty, m.unitCost, m.value, m.note || ''
+              ]);
+            });
+            downloadCSV("barang_masuk.csv", rows);
+          }}>Ekspor Barang Masuk (CSV)</Button>
+        </div>
+      </Card>
+
+      {/* Tabel Barang Masuk */}
+      <Card className="md:col-span-3">
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left border-b">
+                <th className="py-2">Tanggal</th>
+                <th>Produk</th>
+                <th>Qty</th>
+                <th>Harga Beli</th>
+                <th>Nilai</th>
+                <th>Catatan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stockIn.list.map(m=>(
+                <tr key={m.id} className="border-b">
+                  <td className="py-2">{new Date(m.date).toLocaleString('id-ID')}</td>
+                  <td>{m.productName}</td>
+                  <td>{m.qty}</td>
+                  <td>{fmtIDR(m.unitCost)}</td>
+                  <td>{fmtIDR(m.value)}</td>
+                  <td>{m.note}</td>
+                </tr>
+              ))}
+              {stockIn.list.length===0 && (
+                <tr><td colSpan={6} className="text-center py-6 text-gray-400">Tidak ada data barang masuk</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       <Card className="md:col-span-3">

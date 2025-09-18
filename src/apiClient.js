@@ -49,4 +49,11 @@ export const productsApi = {
   create: (p) => request("/products", { method: "POST", body: p }),
   update: (id, p) => request(`/products/${id}`, { method: "PUT", body: p }),
   remove: (id) => request(`/products/${id}`, { method: "DELETE" }),
+  addStock: (id, payload) =>
+    request(`/products/${id}/add-stock`, { method: "POST", body: payload }), // <—
+};
+
+export const reportsApi = {
+  sales: (from, to) => request(`/reports/sales?from=${from}&to=${to}`),
+  stockIn: (from, to) => request(`/reports/stock-in?from=${from}&to=${to}`), // <—
 };
