@@ -1,6 +1,4 @@
-// src/views/Dashboard.jsx
-import { useEffect, useMemo, useState } from "react";
-import api from "../api/apiClient";
+import { useMemo, useState } from "react";
 import Card from "../components/ui/Card";
 import { fmtIDR, todayISO, ymdLocal, daysBetween } from "../utils/format";
 import {
@@ -24,43 +22,21 @@ function aggregateDailyFromSales(list, span = 7) {
   }
   list.forEach((s) => {
     const key = ymdLocal(s.date); // lokal
-    if (map.has(key)) map.set(key, map.get(key) + (s.grandTotal || 0));
+    if (map.has(key)) map.set(key, map.get(key) + s.grandTotal);
   });
   return Array.from(map.entries()).map(([date, total]) => ({ date, total }));
 }
 
 export default function Dashboard({ products, salesRecent }) {
   const today = todayISO();
-
-  // Penjualan hari ini (yang sudah ada)
   const todaySales = useMemo(
     () => salesRecent.filter((s) => ymdLocal(s.date) === today),
     [salesRecent, today]
   );
   const totalToday = useMemo(
-    () => todaySales.reduce((a, s) => a + (s.grandTotal || 0), 0),
+    () => todaySales.reduce((a, s) => a + s.grandTotal, 0),
     [todaySales]
   );
-
-  // === NEW: Keuntungan keseluruhan (all-time) ===
-  const [profitAll, setProfitAll] = useState(0);
-  const [profitLoading, setProfitLoading] = useState(false);
-  const [profitError, setProfitError] = useState("");
-  useEffect(() => {
-    (async () => {
-      try {
-        setProfitLoading(true);
-        setProfitError("");
-        const r = await api.reports.profit(); // tanpa from/to => all-time
-        setProfitAll(r?.profit || 0);
-      } catch (e) {
-        setProfitError(e.message || "Gagal memuat profit");
-        setProfitAll(0);
-      } finally {
-        setProfitLoading(false);
-      }
-    })();
-  }, []);
 
   const [span, setSpan] = useState(7);
   const chartData = useMemo(
@@ -75,23 +51,12 @@ export default function Dashboard({ products, salesRecent }) {
 
   return (
     <div className="grid lg:grid-cols-3 gap-4">
-      {/* Penjualan Hari Ini */}
       <Card>
         <div className="text-gray-500">Penjualan Hari Ini</div>
         <div className="text-3xl font-bold">{fmtIDR(totalToday)}</div>
         <div className="text-sm text-gray-400 mt-1">{todaySales.length} transaksi</div>
       </Card>
 
-      {/* Keuntungan Keseluruhan */}
-      <Card>
-        <div className="text-gray-500">Keuntungan Keseluruhan</div>
-        <div className="text-3xl font-bold">
-          {profitLoading ? "..." : fmtIDR(profitAll)}
-        </div>
-        {profitError && <div className="text-xs text-red-600 mt-1">Error: {profitError}</div>}
-      </Card>
-
-      {/* Stok Kritis */}
       <Card>
         <div className="text-gray-500">Stok Kritis</div>
         <div className="text-3xl font-bold">{lowStock.length}</div>
@@ -105,7 +70,6 @@ export default function Dashboard({ products, salesRecent }) {
         </div>
       </Card>
 
-      {/* Kadaluarsa Dekat */}
       <Card>
         <div className="text-gray-500">Kadaluarsa Dekat</div>
         <div className="text-3xl font-bold">{nearExpiry.length}</div>
@@ -121,7 +85,6 @@ export default function Dashboard({ products, salesRecent }) {
         </div>
       </Card>
 
-      {/* Grafik Penjualan */}
       <Card className="lg:col-span-3">
         <div className="flex items-center justify-between mb-2">
           <div className="font-semibold">Grafik Penjualan</div>
