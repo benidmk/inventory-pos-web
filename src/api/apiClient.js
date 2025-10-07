@@ -11,7 +11,19 @@ function getToken() {
   }
 }
 
-async function request(path, { method = "GET", body, headers = {} } = {}) {
+function qs(params = {}) {
+  const sp = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== "") sp.append(k, v);
+  });
+  const s = sp.toString();
+  return s ? `?${s}` : "";
+}
+
+async function request(
+  path,
+  { method = "GET", body, headers = {}, signal } = {}
+) {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers: {
@@ -19,10 +31,10 @@ async function request(path, { method = "GET", body, headers = {} } = {}) {
       ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
       ...headers,
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal,
   });
 
-  // ambil body text dulu supaya kalau bukan JSON tetap kebaca
   const text = await res.text();
   let json;
   try {
@@ -39,35 +51,47 @@ async function request(path, { method = "GET", body, headers = {} } = {}) {
 }
 
 const api = {
+  // ===== Convenience methods supaya kompatibel dengan pemanggilan api.get(...) dkk =====
+  get: (path, opts = {}) => request(path, { ...opts, method: "GET" }),
+  post: (path, body, opts = {}) =>
+    request(path, { ...opts, method: "POST", body }),
+  put: (path, body, opts = {}) =>
+    request(path, { ...opts, method: "PUT", body }),
+  delete: (path, opts = {}) => request(path, { ...opts, method: "DELETE" }),
+
+  // ===== Modules =====
   auth: {
-    login: (password) =>
-      request("/auth/login", { method: "POST", body: { password } }),
+    login: (password) => api.post("/auth/login", { password }),
   },
+
   products: {
-    list: (q = "") =>
-      request(`/products${q ? `?q=${encodeURIComponent(q)}` : ""}`),
-    create: (p) => request("/products", { method: "POST", body: p }),
-    update: (id, p) => request(`/products/${id}`, { method: "PUT", body: p }),
-    remove: (id) => request(`/products/${id}`, { method: "DELETE" }),
-    addStock: (id, payload) =>
-      request(`/products/${id}/add-stock`, { method: "POST", body: payload }),
+    list: (q = "") => api.get(`/products${qs({ q })}`),
+    create: (p) => api.post("/products", p),
+    update: (id, p) => api.put(`/products/${id}`, p),
+    remove: (id) => api.delete(`/products/${id}`),
+    addStock: (id, payload) => api.post(`/products/${id}/add-stock`, payload),
   },
+
   customers: {
-    list: () => request("/customers"),
-    create: (c) => request("/customers", { method: "POST", body: c }),
-    update: (id, c) => request(`/customers/${id}`, { method: "PUT", body: c }),
-    remove: (id) => request(`/customers/${id}`, { method: "DELETE" }),
+    list: () => api.get("/customers"),
+    create: (c) => api.post("/customers", c),
+    update: (id, c) => api.put(`/customers/${id}`, c),
+    remove: (id) => api.delete(`/customers/${id}`),
   },
+
   sales: {
-    create: (payload) => request("/sales", { method: "POST", body: payload }),
-    list: (status) => request(`/sales${status ? `?status=${status}` : ""}`),
+    create: (payload) => api.post("/sales", payload),
+    list: (status) => api.get(`/sales${qs({ status })}`),
+    detail: (id) => api.get(`/sales/${id}/detail`),
   },
+
   payments: {
-    create: (p) => request("/payments", { method: "POST", body: p }),
+    create: (p) => api.post("/payments", p),
   },
+
   reports: {
-    sales: (from, to) => request(`/reports/sales?from=${from}&to=${to}`),
-    stockIn: (from, to) => request(`/reports/stock-in?from=${from}&to=${to}`),
+    sales: (from, to) => api.get(`/reports/sales${qs({ from, to })}`),
+    stockIn: (from, to) => api.get(`/reports/stock-in${qs({ from, to })}`),
   },
 };
 
