@@ -139,72 +139,71 @@ export default function POSView({ products, customers, reloadAll, settings }) {
 
   // ======= FINALIZE (UX: guard, retry 409) =======
   async function finalize() {
-    if (saving) return; // guard double click
-    if (items.length === 0) return push("Belum ada item", "error");
+  if (saving) return; // guard double click
+  if (items.length === 0) return push("Belum ada item", "error");
 
-    // jika piutang (paid=0) dan tanpa pelanggan -> konfirmasi
-    if (paid === 0 && !customerId) {
-      const ok = window.confirm(
-        "Pembayaran 0 (piutang). Lanjut tanpa memilih pelanggan?"
-      );
-      if (!ok) return;
-    }
+  if (paid === 0 && !customerId) {
+    const ok = window.confirm("Pembayaran 0 (piutang). Lanjut tanpa memilih pelanggan?");
+    if (!ok) return;
+  }
 
-    // clamp paid agar tidak negatif / NaN
-    const paySafe = Number.isFinite(paid) ? Math.max(0, Math.floor(paid)) : 0;
+  const paySafe = Number.isFinite(paid) ? Math.max(0, Math.floor(paid)) : 0;
 
-    const payload = {
-      customerId: customerId || null,
-      note,
-      items: items.map((i) => ({ productId: i.productId, qty: i.qty })),
-      amountPaid: paySafe,
-      method: "Tunai",
-    };
+  const payload = {
+    customerId: customerId || null,
+    note,
+    items: items.map((i) => ({ productId: i.productId, qty: i.qty })),
+    amountPaid: paySafe,
+    method: "Tunai",
+  };
 
-    setSaving(true);
-    setJustSavedInvoice("");
+  setSaving(true);
+  setJustSavedInvoice("");
 
-    // helper untuk eksekusi & handle hasil
-    const doSubmit = async () => {
-      const sale = await api.sales.create(payload);
-      // cetak struk dengan data keranjang lokal (nama item dsb.)
-      printReceipt({ ...sale, items, grandTotal, amountPaid: paySafe });
-      // reset form
-      setItems([]);
-      setCustomerId("");
-      setNote("");
-      setPaid(0);
-      setQ("");
-      setJustSavedInvoice(sale.invoiceNo || "");
-      push(`Transaksi tersimpan: ${sale.invoiceNo}`, "success");
-      inputSearchRef.current?.focus();
-      await reloadAll?.();
-    };
+  const doSubmit = async () => {
+    const sale = await api.sales.create(payload);
+    printReceipt({ ...sale, items, grandTotal, amountPaid: paySafe });
+    setItems([]);
+    setCustomerId("");
+    setNote("");
+    setPaid(0);
+    setQ("");
+    setJustSavedInvoice(sale.invoiceNo || "");
+    push(`Transaksi tersimpan: ${sale.invoiceNo}`, "success");
+    inputSearchRef.current?.focus();
+    await reloadAll?.();
+  };
 
-    try {
+  try {
+    const MAX_RETRY = 3;
+    for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
       try {
         await doSubmit();
+        break; // sukses -> keluar loop
       } catch (e) {
-        // kalau bentrok invoice (409), coba 1x retry kecil
-        const msg = e?.message || "";
-        const is409 =
-          msg.includes("409") ||
-          msg.includes("Nomor invoice bentrok") ||
-          msg.toLowerCase().includes("conflict");
-        if (is409) {
+        // ← kunci: gunakan status dari apiClient
+        const isConflict =
+          e?.status === 409 ||
+          (typeof e?.message === "string" &&
+            (e.message.includes("Nomor invoice bentrok") ||
+             e.message.includes("duplicate key") ||
+             e.message.includes("Unique constraint")));
+
+        if (isConflict && attempt < MAX_RETRY) {
           push("Nomor invoice bentrok, mencoba ulang...", "info");
-          await new Promise((r) => setTimeout(r, 180)); // jitter kecil
-          await doSubmit();
-        } else {
-          throw e;
+          await new Promise((r) => setTimeout(r, 200 * attempt)); // backoff 200ms, 400ms
+          continue;
         }
+        throw e; // error lain atau mentok retry
       }
-    } catch (e) {
-      push(e.message, "error");
-    } finally {
-      setSaving(false);
     }
+  } catch (e) {
+    console.error("[POS finalize]", e);
+    push(e?.message || "Gagal menyimpan transaksi", "error");
+  } finally {
+    setSaving(false);
   }
+}
 
   // Enter di search → tambahkan produk teratas
   function onSearchKeyDown(e) {

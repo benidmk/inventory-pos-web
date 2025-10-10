@@ -92,6 +92,9 @@ const api = {
   reports: {
     sales: (from, to) => api.get(`/reports/sales${qs({ from, to })}`),
     stockIn: (from, to) => api.get(`/reports/stock-in${qs({ from, to })}`),
+    profit: (from, to) => api.get(`/reports/profit${qs({ from, to })}`),
+    totalSales: (from, to) =>
+      api.get(`/reports/total-sales${qs({ from, to })}`),
   },
 };
 

@@ -45,7 +45,10 @@ async function request(
 
   if (!res.ok) {
     const msg = json?.error || json?.message || `HTTP ${res.status}`;
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.status = res.status;
+    err.body = json;
+    throw err;
   }
   return json;
 }
