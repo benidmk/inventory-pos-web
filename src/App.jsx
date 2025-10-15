@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+// src/App.jsx
+import { useEffect, useMemo, useState } from "react";
 import api from "./api/apiClient";
 import { ymdLocal } from "./utils/format";
 
 // layout & auth
-import LoginView from "./components/LoginView";
+import LoginView from "./components/LoginView"; 
 import Layout from "./components/Layout";
 
 // views
@@ -14,21 +15,30 @@ import CustomersView from "./views/CustomersView";
 import PaymentsView from "./views/PaymentsView";
 import ReportsView from "./views/ReportsView";
 import SettingsView from "./views/SettingsView";
+import UsersView from "./views/UsersView"; // halaman manajemen user (admin-only)
 
-/** helpers token */
+// session utils (role & logout)
+import { getRole, isViewer, logout as clearSession } from "./utils/auth";
+
+/* =========================
+   Helpers token (fallback)
+========================= */
 function getToken() {
-  try { return localStorage.getItem("token") || ""; } catch { return ""; }
-}
-function clearToken() {
-  try { localStorage.removeItem("token"); } catch {}
+  try {
+    return localStorage.getItem("token") || "";
+  } catch {
+    return "";
+  }
 }
 
 export default function App() {
-  // routing/tab
+  // routing/tab (nama halaman konsisten dengan Sidebar/Layout milikmu)
   const [page, setPage] = useState("dashboard");
 
   // auth state
   const [logged, setLogged] = useState(!!getToken());
+  const [role, setRole] = useState(() => getRole()); // "ADMIN" | "VIEWER"
+  const viewer = useMemo(() => isViewer(), [role]);
 
   // data utama yang dibutuhkan banyak view
   const [products, setProducts] = useState([]);
@@ -46,7 +56,9 @@ export default function App() {
     storePhone: "",
   });
 
-  // muat settings dari localStorage
+  /* =========================
+     Settings: load & persist
+  ========================= */
   useEffect(() => {
     try {
       const s = localStorage.getItem("pos_settings");
@@ -54,18 +66,18 @@ export default function App() {
     } catch {}
   }, []);
 
-  // simpan settings ke localStorage setiap berubah
   useEffect(() => {
-    try { localStorage.setItem("pos_settings", JSON.stringify(settings)); } catch {}
+    try {
+      localStorage.setItem("pos_settings", JSON.stringify(settings));
+    } catch {}
   }, [settings]);
 
-  // fungsi memuat ulang data inti (produk, pelanggan, penjualan recent)
+  /* =========================
+     Load core data (products, customers, recent sales)
+  ========================= */
   async function reloadAll() {
     try {
-      const [p, c] = await Promise.all([
-        api.products.list(""),
-        api.customers.list(),
-      ]);
+      const [p, c] = await Promise.all([api.products.list(""), api.customers.list()]);
       setProducts(p);
       setCustomers(c);
 
@@ -80,23 +92,53 @@ export default function App() {
     }
   }
 
-  // saat login sukses → muat semua data
+  // setelah login → muat semua data & sinkron role
   useEffect(() => {
-    if (logged) reloadAll();
+    if (logged) {
+      setRole(getRole());
+      reloadAll();
+    }
   }, [logged]);
 
-  // tampilan login
+  // jaga-jaga: jika user VIEWER mencoba membuka halaman admin-only
+  useEffect(() => {
+    if (page === "users" && role !== "ADMIN") {
+      setPage("dashboard");
+    }
+  }, [page, role]);
+
+  /* =========================
+     Auth wall (Login)
+  ========================= */
   if (!logged) {
-    return <LoginView onLogin={() => setLogged(true)} />;
+    return (
+      <LoginView
+        onLogin={() => {
+          setLogged(true);
+          setRole(getRole());
+          // optional: redirect ke dashboard
+          setPage("dashboard");
+        }}
+      />
+    );
   }
 
+  /* =========================
+     App Layout
+  ========================= */
   return (
     <Layout
       page={page}
       setPage={setPage}
+      role={role} // kalau Layout mau menyesuaikan menu berdasarkan role
       onLogout={() => {
-        clearToken();
+        clearSession();     // hapus token + role + name + username
         setLogged(false);
+        setRole("VIEWER");
+        setProducts([]);
+        setCustomers([]);
+        setSalesRecent([]);
+        setPage("dashboard");
       }}
     >
       {page === "dashboard" && (
@@ -118,9 +160,8 @@ export default function App() {
         <CustomersView
           setTab={setPage}
           setPaymentFilterCustomer={setPaymentFilterCustomer}
-          // opsional: kalau mau hitung saldo lokal pakai salesRecent
           sales={salesRecent}
-          payments={[]} // kita tidak memuat list payments global di UI ini
+          payments={[]}
         />
       )}
 
@@ -137,6 +178,9 @@ export default function App() {
       {page === "settings" && (
         <SettingsView settings={settings} setSettings={setSettings} />
       )}
+
+      {/* Halaman Users (khusus ADMIN) */}
+      {page === "users" && role === "ADMIN" && <UsersView />}
     </Layout>
   );
 }

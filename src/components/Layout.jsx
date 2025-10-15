@@ -1,69 +1,84 @@
+// src/components/Layout.jsx
+import React from "react";
 import Button from "./ui/Button";
+import { getRole } from "../utils/auth";
 
-const MENUS = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "products",  label: "Produk" },
-  { key: "pos",       label: "Kasir" },
-  { key: "customers", label: "Pelanggan" },
-  { key: "payments",  label: "Pembayaran" },
-  { key: "reports",   label: "Laporan" },
-  { key: "settings",  label: "Settings" },
-];
-
-export default function Layout({ page, setPage, onLogout, children }) {
+function NavItem({ active, onClick, children }) {
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-3 py-2 rounded-lg transition ${
+        active ? "bg-blue-600 text-white" : "hover:bg-gray-100 text-gray-800"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Props:
+ * - page: string            // "dashboard" | "products" | "pos" | "customers" | "payments" | "reports" | "settings" | "users"
+ * - setPage: (p)=>void
+ * - onLogout: ()=>void
+ * - role?: "ADMIN" | "VIEWER"   // opsional; jika tidak dikirim, akan dibaca dari localStorage
+ * - children: ReactNode
+ */
+export default function Layout({ page, setPage, onLogout, role: roleProp, children }) {
+  const role = roleProp || getRole(); // fallback baca dari localStorage
+
+  return (
+    <div className="min-h-screen grid grid-cols-12 bg-gray-50">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r sticky top-0 h-screen hidden md:flex md:flex-col">
-        <div className="p-4 text-lg font-bold border-b">BUMDESMA SILINDA</div>
-        <nav className="p-2 space-y-1 overflow-auto">
-          {MENUS.map((m) => (
-            <button
-              key={m.key}
-              onClick={() => setPage(m.key)}
-              className={`w-full text-left px-3 py-2 rounded-xl hover:bg-gray-100 ${
-                page === m.key ? "bg-blue-600 text-white hover:bg-blue-600" : ""
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
+      <aside className="col-span-12 md:col-span-3 lg:col-span-2 border-r bg-white">
+        <div className="p-4">
+          <div className="text-xl font-bold">Inventory POS</div>
+          <div className="text-xs text-gray-500 mt-1">
+            Role: <span className="font-medium">{role}</span>
+          </div>
+        </div>
+        <nav className="px-3 space-y-1">
+          <NavItem active={page === "dashboard"} onClick={() => setPage("dashboard")}>
+            Dashboard
+          </NavItem>
+          <NavItem active={page === "products"} onClick={() => setPage("products")}>
+            Produk
+          </NavItem>
+          <NavItem active={page === "pos"} onClick={() => setPage("pos")}>
+            POS (Kasir)
+          </NavItem>
+          <NavItem active={page === "customers"} onClick={() => setPage("customers")}>
+            Pelanggan
+          </NavItem>
+          <NavItem active={page === "payments"} onClick={() => setPage("payments")}>
+            Pembayaran
+          </NavItem>
+          <NavItem active={page === "reports"} onClick={() => setPage("reports")}>
+            Laporan
+          </NavItem>
+          <NavItem active={page === "settings"} onClick={() => setPage("settings")}>
+            Pengaturan
+          </NavItem>
+
+          {/* Hanya ADMIN yang melihat menu Users */}
+          {role === "ADMIN" && (
+            <NavItem active={page === "users"} onClick={() => setPage("users")}>
+              Users
+            </NavItem>
+          )}
         </nav>
-        <div className="mt-auto p-2">
-          <Button className="w-full" onClick={onLogout}>Keluar</Button>
+
+        <div className="p-4 mt-4">
+          <Button className="w-full" onClick={onLogout}>
+            Keluar
+          </Button>
         </div>
       </aside>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        {/* Mobile header */}
-        <header className="md:hidden sticky top-0 z-10 bg-white/80 backdrop-blur border-b">
-          <div className="p-3 flex items-center justify-between">
-            <div className="text-lg font-bold">BUMDESMA SILINDA</div>
-            <div className="flex gap-2">
-              <Button onClick={onLogout}>Keluar</Button>
-            </div>
-          </div>
-
-          <div className="flex overflow-auto gap-2 p-2">
-            {MENUS.map((t) => (
-              <Button
-                key={t.key}
-                className={`${page === t.key ? "bg-blue-600 text-white" : ""}`}
-                onClick={() => setPage(t.key)}
-              >
-                {t.label}
-              </Button>
-            ))}
-          </div>
-        </header>
-
-        <main className="max-w-6xl mx-auto p-4 space-y-4">{children}</main>
-
-        <footer className="max-w-6xl mx-auto p-4 text-center text-xs text-gray-400">
-          © {new Date().getFullYear()} – Beni.
-        </footer>
-      </div>
+      {/* Main */}
+      <main className="col-span-12 md:col-span-9 lg:col-span-10 p-4">
+        {children}
+      </main>
     </div>
   );
 }

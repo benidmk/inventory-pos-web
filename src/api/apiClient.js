@@ -1,8 +1,11 @@
 // src/api/apiClient.js
 const BASE_URL =
   import.meta?.env?.VITE_API_BASE_URL ||
-  "https://bumdesma.up.railway.app/api/v1";
+  "https://inventory-pos-api.benalexsandro.workers.dev/api/v1";
 
+/* =========================
+   Helpers
+========================= */
 function getToken() {
   try {
     return localStorage.getItem("token") || "";
@@ -53,8 +56,11 @@ async function request(
   return json;
 }
 
+/* =========================
+   API Object
+========================= */
 const api = {
-  // ===== Convenience methods supaya kompatibel dengan pemanggilan api.get(...) dkk =====
+  // Convenience methods (biar bisa api.get/post/put/delete)
   get: (path, opts = {}) => request(path, { ...opts, method: "GET" }),
   post: (path, body, opts = {}) =>
     request(path, { ...opts, method: "POST", body }),
@@ -62,11 +68,13 @@ const api = {
     request(path, { ...opts, method: "PUT", body }),
   delete: (path, opts = {}) => request(path, { ...opts, method: "DELETE" }),
 
-  // ===== Modules =====
+  /* ===== Auth (username + password) ===== */
   auth: {
-    login: (password) => api.post("/auth/login", { password }),
+    login: (username, password) =>
+      api.post("/auth/login", { username, password }),
   },
 
+  /* ===== Products ===== */
   products: {
     list: (q = "") => api.get(`/products${qs({ q })}`),
     create: (p) => api.post("/products", p),
@@ -75,6 +83,7 @@ const api = {
     addStock: (id, payload) => api.post(`/products/${id}/add-stock`, payload),
   },
 
+  /* ===== Customers ===== */
   customers: {
     list: () => api.get("/customers"),
     create: (c) => api.post("/customers", c),
@@ -82,22 +91,39 @@ const api = {
     remove: (id) => api.delete(`/customers/${id}`),
   },
 
+  /* ===== Sales / POS ===== */
   sales: {
     create: (payload) => api.post("/sales", payload),
     list: (status) => api.get(`/sales${qs({ status })}`),
     detail: (id) => api.get(`/sales/${id}/detail`),
   },
 
+  /* ===== Payments ===== */
   payments: {
     create: (p) => api.post("/payments", p),
   },
 
+  /* ===== Reports ===== */
   reports: {
     sales: (from, to) => api.get(`/reports/sales${qs({ from, to })}`),
     stockIn: (from, to) => api.get(`/reports/stock-in${qs({ from, to })}`),
     profit: (from, to) => api.get(`/reports/profit${qs({ from, to })}`),
     totalSales: (from, to) =>
       api.get(`/reports/total-sales${qs({ from, to })}`),
+  },
+
+  /* ===== Users (admin only) ===== */
+  users: {
+    list: () => api.get("/users"),
+    create: (u) => api.post("/users", u), // { username, name, password, role }
+    update: (id, u) => api.put(`/users/${id}`, u), // atau PATCH di backend jika kamu pakai patch
+    patch: (id, u) => request(`/users/${id}`, { method: "PATCH", body: u }),
+    remove: (id) => api.delete(`/users/${id}`),
+  },
+
+  /* ===== Login Audits (admin only) ===== */
+  audits: {
+    loginList: () => api.get("/audits/login"),
   },
 };
 
