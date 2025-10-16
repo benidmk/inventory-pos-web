@@ -101,6 +101,8 @@ const api = {
   /* ===== Payments ===== */
   payments: {
     create: (p) => api.post("/payments", p),
+    list: ({ customerId, saleId, from, to } = {}) =>
+      api.get(`/payments${qs({ customerId, saleId, from, to })}`),
   },
 
   /* ===== Reports ===== */
